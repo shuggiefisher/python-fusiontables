@@ -2,4 +2,4 @@ importlib
 python-dateutil
 simplejson
 httplib2
-
+nose

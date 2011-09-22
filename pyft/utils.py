@@ -5,9 +5,9 @@ import imp as _imp
 import importlib
 from contextlib import contextmanager
 
-from fusiontable.authorization.clientlogin import ClientLogin
-from fusiontable.ftclient import ClientLoginFTClient
-from fusiontable.sql.sqlbuilder import SQL
+from pyft.client.authorization.clientlogin import ClientLogin
+from pyft.client.ftclient import ClientLoginFTClient
+from pyft.client.sql.sqlbuilder import SQL
 
 
 @contextmanager
@@ -93,8 +93,6 @@ def ft_client_factory():
 
 import re
 from urllib2 import HTTPError
-
-from pyft.contrib.fusiontables import ft_client_factory
 
 def validate_ft_input_string(input_str):
   """
