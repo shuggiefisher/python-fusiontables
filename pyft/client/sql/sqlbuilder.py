@@ -93,7 +93,9 @@ class SQL:
     Returns:
       the sql statement
     """
-    if len(cols) != len(values): return None
+    if len(cols) != len(values):
+      raise ValueError('The columns and values do not match!')
+
     updateStatement = ""
     count = 1
     for i in range(len(cols)):
