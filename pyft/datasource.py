@@ -1,30 +1,38 @@
-from fusiontable.authorization.clientlogin import ClientLogin
-from fusiontable.ftclient import ClientLoginFTClient
-from fusiontable.sql.sqlbuilder import SQL
-
-from fusiontables.models import FusionTable
-from fusiontables.forms import FusionTablesAddForm
-from datasource_base import DataSource
-from fusiontables import util
-
 import logging
 
-from pyft import fields
+from pyft import current_app
+from pyft.client.sql.sqlbuilder import SQL
+
+from pyft.fields import RowID
+from pyft.fields import StringField
+from pyft.fields import NumberField
+from pyft.fields import LocationField
+from pyft.fields import DatetimeField
 
 logger = logging.getLogger(__name__)
 
-class FusionTable(FusionTableBase):
+DEFAULT_TYPE_HANDLER = {
+    'rowid': RowID,
+    'string':StringField,
+    'number':NumberField,
+    'location':LocationField,
+    'datetime':DatetimeField
+    }
 
-  _client = None
-  _table_id = None
+class FusionTable(object):
+
+  table_id = None
+  client = None
+  table_name = None
   _db_model = None
   _schema = None
   _django_schema = None
-  table_name = None
 
-  def __init__(self, table_name):
+  def __init__(self, table_id, type_handler=DEFAULT_TYPE_HANDLER, name_handler={}):
     self.table_id = table_id
-    self._client = 
+    self.client = current_app.client
+    self.column_handler_by_type = type_handler
+    self.column_handler_by_name = name_handler
     
   @property
   def table_name(self):
@@ -81,29 +89,29 @@ class FusionTable(FusionTableBase):
     for col_id, col_name, col_type in self.fetch_schema():
 
       if col_type == 'rowid': 
-        field = fields.CharField(max_length=128)
+        field = RowID
       elif col_type == 'location': 
-        field = fields.TextField(blank=True, null=True)
+        field = LocationField
       elif col_type == 'string': 
-        field = fields.TextField(blank=True, null=True)
+        field = StringField
       elif col_type == 'number': 
-        field = fields.FloatField(blank=True, null=True)
+        field = NumberField
       elif col_type == 'datetime': 
-        field = fields.DateTimeField(blank=True, null=True)
+        field = DatetimeField
 
       while col_name in schema:
         col_name = col_name + "_"
 
-      schema[util.slugify(unicode(col_name))] = field
+      schema[unicode(col_name)] = field
 
     return schema
   
   @classmethod
-  def create(cls, schema):
+  def create(cls, schema, table_name, type_handler=DEFAULT_TYPE_HANDLER, name_handler={}):
     """
       Create a remote fusion table
 
-      schema: a dictionary representing the table. example:
+      schema: a dictionary representing the remote table. example:
         {
         "col_name1":"STRING",
         "col_name2":"NUMBER",
@@ -111,20 +119,22 @@ class FusionTable(FusionTableBase):
         "col_name4":"DATETIME"
         }
     """
-    if self._table_id == None:
-      if self.table_name == "": raise Exception("Fusion Table name can't be blank")
+    resp = current_app.client.query(
+      SQL().createTable(
+        { table_name: schema }
+      ))
+    table_id = int(resp.split('\n')[1])
 
-      resp = self.client.query(
-        SQL().createTable(
-          { self.table_name: schema }
-        ))
+    return cls(table_id)
 
-      table_id = int(resp.split('\n')[1])
-
-    return cls(table_id=table_id)
+  def delete(self):
+    " Delete this remote fusion table "
+    drop_sql = SQL().dropTable(self.table_id)
+    resp = current_app.client.query(drop_sql)
+    return resp
 
   def pull(self):
-    "Pull changes from fusion tables"
+    " Pull changes from fusion tables "
 
     import time
     start_time = time.clock()
@@ -140,28 +150,87 @@ class FusionTable(FusionTableBase):
     end_time = time.clock()
     logger.info("synchronized {0} in {1} seconds (CPU time)".format(ft.table_name, end_time - start_time));
 
-  def push(self, *args, **kwargs):
-    "Push data locally back to google-hosted fusion table"
-
-    if('fields' in kwargs ):
-      slugged_names = kwargs['fields']
-      #look up the fusion table column name for each slugged name
-      column_names = [self.columns.get(slugged_name = slugged_name).name for slugged_name in slugged_names]
-    else:
-      column_names = [column.name for column in self.columns.all()]
-      slugged_names = [column.slugged_name for column in self.columns.all()]
+  def update(self, rows=[], callback=None):
+    """Push data locally back to google-hosted fusion table
+       `rows` is a list of Row objects
+    """
 
     # apply to an optional subset of records.
-    if('queryset' in kwargs):
-      queryset = kwargs['queryset']
-    else:
-      queryset = self.db_model.objects.all()
 
-    for row in queryset:
-      values = [getattr(row, slugged_name) for slugged_name in slugged_names]
+    for row in rows:
+      column_names = []
+      column_name_field_map = {}
+      unique_columns = []
+      values = []
+
+      for field in row:
+        column_names.append(field.column_name)
+        column_name_field_map[field.column_name] = field
+        if field.unique_key:
+          unique_columns.append(field.column_name)
+        values.append(row.field_value)
+
       update_query = SQL().update(self.table_id, column_names, values, int(row.rowid))
       logger.debug('executing fusion table query: %s' % update_query)
       self.client.query(update_query)
+
+  def insert(self, rows=[], callback=None):
+    """
+      Push data locally back to google-hosted fusion table
+       `rows` is a list of Row objects that have the same column structure
+
+      schema: a dictionary representing the rows to be inserted. example:
+        {
+        "col_name1":"STRING",
+        "col_name2":"NUMBER",
+        "col_name3":"LOCATION",
+        "col_name4":"DATETIME"
+        }
+
+    """
+
+    # apply to an optional subset of records.
+
+    for row in rows:
+      insert_values = {}
+      for col_name in row.column_names():
+        # don't call prepare_value() because `SQL` does it for us
+        insert_values[col_name] = row.field_lookup[col_name].value
+
+      insert_query = SQL().insert(self.table_id, insert_values)
+      logger.debug('executing fusion table query: %s' % insert_query)
+      self.client.query(insert_query)
+
+    # now fetch the fusion table rowid for each row
+    if callback:
+      ids = self.get_row_ids(rows)
+
+  def get_row_ids(self, unique_key, rows=[]):
+    """
+    Based on a set of rows, get the remote fusion table rowids
+    `rows` are a set of row objects
+    `unique_key` is the name of a column that acts as a primary key in our rows
+    """
+
+    # build a lookup mapping for key-column-name -> key-value -> row
+    key_field_map = {}
+    key_values = []
+    for row in rows:
+      for field in row:
+        if field.column_name == unique_key:
+          key_values.append(field.value)
+          key_field_map[field.value] = row 
+   
+    logger.debug("Produced key-field map:{0}".format(key_field_map))
+    select_columns = rows[0].column_names() + ['ROWID']
+    logger.debug("selecting these columns:{0}".format(select_columns))
+    key_column_values = ",".join([r.field_lookup[unique_key].prepare_value() for r in rows])
+    membership_clause = "'{0}' IN ({1})".format(unique_key,
+                                                key_column_values)
+
+    select_query = SQL().select(self.table_id, select_columns, membership_clause)
+    logger.debug('executing fusion table query: %s' % select_query)
+    return self.client.query(select_query)
 
 
   def pull(self):

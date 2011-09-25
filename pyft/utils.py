@@ -78,11 +78,7 @@ def import_from_cwd(module, imp=None):
     with cwd_in_path():
         return imp(module)
 
-def ft_client_factory():
-
-  from pyft import current_app
-  username = current_app.settings['PYFT_GOOGLE_USERNAME']
-  password = current_app.settings['PYFT_GOOGLE_PASSWORD']
+def ft_client_factory(username, password):
 
   token = ClientLogin().authorize(username, password)
   client = ClientLoginFTClient(token)

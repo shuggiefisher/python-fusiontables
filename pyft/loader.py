@@ -8,7 +8,11 @@ class Loader(object):
   "from celery loader"
 
   def setup_settings(self, settingsdict):
-    return settingsdict
+    default = {
+        'TEST_TABLE_PREFIX':'__pyft_test_'
+    }
+    default.update(settingsdict)
+    return default
 
   def find_module(self, module):
     return find_module(module)
