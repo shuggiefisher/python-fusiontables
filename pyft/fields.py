@@ -30,7 +30,7 @@ class Row(list):
   def column_names(self):
     return [field.column_name for field in self]
 
-  def row_values(self):
+  def values(self):
     return [field.value for field in self]
   
   def field_lookup(self, column_name):

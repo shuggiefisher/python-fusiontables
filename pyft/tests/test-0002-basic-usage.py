@@ -28,10 +28,10 @@ class PYFTUsage(unittest.TestCase):
     rand_numbers = []
     rand_letters = []
 
-    for i in xrange(1000):
+    for i in xrange(10):
       ran_str = ""
 
-      for k in xrange(10):
+      for k in xrange(100):
         ran_str += (string.letters + string.digits)[random.randrange(0, len(string.letters + string.digits))]
 
       rand_numbers.append(random.randint(0,1000))
@@ -42,20 +42,41 @@ class PYFTUsage(unittest.TestCase):
   def test_simple_insert_and_update(self):
 
     rows = []
-
     for num,letter in self.simple_data:
       rows.append(Row(row_id=None, fields=[NumberField(num, column_name="numbers"),
                                            StringField(letter,column_name="letters")]))
-    res = self.ft.insert(rows)
-    row_ids = self.ft.get_row_ids('numbers', rows)
+    row_ids = self.ft.insert(rows)
+    rows = []
+    for (num,letter),row_id in zip(self.simple_data, row_ids):
+      rows.append(Row(row_id=row_id, fields=[NumberField(num, column_name="numbers"),
+                                           StringField(letter,column_name="letters")]))
+
+    row_ids = self.ft.update(rows)
+
+    # from IPython import embed
+    # embed()
+
+  def test_large_insert_and_update(self):
+
+    rows = []
+    for num,letter in self.dummy_data:
+      rows.append(Row(row_id=None, fields=[NumberField(num, column_name="numbers"),
+                                           StringField(letter,column_name="letters")]))
+    row_ids = self.ft.insert(rows)
+
+    rows = []
+    for (num,letter),row_id in zip(self.dummy_data, row_ids):
+      rows.append(Row(row_id=row_id, fields=[NumberField(num, column_name="numbers"),
+                                           StringField("updated-"+letter,column_name="letters")]))
+
+    row_ids = self.ft.update(rows)
 
     # from IPython import embed
     # embed()
     
   def test_schema_fetch(self):
 
-    ft = FusionTable(687165)
-    res = ft.base_schema
+    res = self.ft.base_schema
 
   def tearDown(self):
 

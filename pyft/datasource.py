@@ -1,4 +1,5 @@
 import logging
+import csv
 
 from pyft import current_app
 from pyft.client.sql.sqlbuilder import SQL
@@ -19,6 +20,9 @@ DEFAULT_TYPE_HANDLER = {
     'datetime':DatetimeField
     }
 
+QUERY_SIZE_LIMIT = 1048576
+
+
 class FusionTable(object):
 
   table_id = None
@@ -27,6 +31,7 @@ class FusionTable(object):
   _db_model = None
   _schema = None
   _django_schema = None
+  _last_query_time = None
 
   def __init__(self, table_id, type_handler=DEFAULT_TYPE_HANDLER, name_handler={}):
     self.table_id = table_id
@@ -36,7 +41,6 @@ class FusionTable(object):
     
   @property
   def table_name(self):
-
     # parse resp into rows(\n) and columns(,),
     # discarding the first row which is header info
     tbl_attrs = []
@@ -53,7 +57,6 @@ class FusionTable(object):
     return self.table_name
 
   def set_table_name(self):
-
     # parse resp into rows(\n) and columns(,),
     # discarding the first row which is header info
     tbl_attrs = []
@@ -80,9 +83,7 @@ class FusionTable(object):
 
   @property
   def base_schema(self):
-    """
-      Get a python compatible schema list from fusion table
-    """
+    "Get a python compatible schema list from fusion table"
 
     description = self.client.query(SQL().describeTable(self.table_id))
     schema = {}
@@ -105,6 +106,14 @@ class FusionTable(object):
       schema[unicode(col_name)] = field
 
     return schema
+
+  @classmethod
+  def run_query(self, query):
+
+    logger.debug('execute query: %s' % query)
+    res =  current_app.client.query(query)
+    logger.debug('result: %s' % res)
+    return res 
   
   @classmethod
   def create(cls, schema, table_name, type_handler=DEFAULT_TYPE_HANDLER, name_handler={}):
@@ -130,7 +139,7 @@ class FusionTable(object):
   def delete(self):
     " Delete this remote fusion table "
     drop_sql = SQL().dropTable(self.table_id)
-    resp = current_app.client.query(drop_sql)
+    resp = self.run_query(drop_sql)
     return resp
 
   def pull(self):
@@ -150,30 +159,6 @@ class FusionTable(object):
     end_time = time.clock()
     logger.info("synchronized {0} in {1} seconds (CPU time)".format(ft.table_name, end_time - start_time));
 
-  def update(self, rows=[], callback=None):
-    """Push data locally back to google-hosted fusion table
-       `rows` is a list of Row objects
-    """
-
-    # apply to an optional subset of records.
-
-    for row in rows:
-      column_names = []
-      column_name_field_map = {}
-      unique_columns = []
-      values = []
-
-      for field in row:
-        column_names.append(field.column_name)
-        column_name_field_map[field.column_name] = field
-        if field.unique_key:
-          unique_columns.append(field.column_name)
-        values.append(row.field_value)
-
-      update_query = SQL().update(self.table_id, column_names, values, int(row.rowid))
-      logger.debug('executing fusion table query: %s' % update_query)
-      self.client.query(update_query)
-
   def insert(self, rows=[], callback=None):
     """
       Push data locally back to google-hosted fusion table
@@ -189,25 +174,84 @@ class FusionTable(object):
 
     """
 
-    # apply to an optional subset of records.
+    query_list = []
+    row_id_result = []
 
     for row in rows:
       insert_values = {}
       for col_name in row.column_names():
-        # don't call prepare_value() because `SQL` does it for us
+        # don't call field_instance.prepare_value() because `SQL` does it for us
         insert_values[col_name] = row.field_lookup[col_name].value
 
-      insert_query = SQL().insert(self.table_id, insert_values)
-      logger.debug('executing fusion table query: %s' % insert_query)
-      self.client.query(insert_query)
+      new_query = SQL().insert(self.table_id, insert_values)
+      query_list.append(new_query)
 
-    # now fetch the fusion table rowid for each row
-    if callback:
-      ids = self.get_row_ids(rows)
+    result_batch = self.bulk_insert_query(query_list)
+
+    new_row_ids = []
+    for result in result_batch:
+      rows = result.strip().split('\n')
+      # skip the header
+      for row in csv.reader(rows[1:]):
+        new_row_ids += row
+
+    logger.debug('return row ids for the inserted rows {0}'.format(row) )
+    return new_row_ids
+
+  def bulk_insert_query(self, query_list):
+
+    todo_query_list = [] 
+    results = []
+
+    for query in query_list:
+      if len(";".join(todo_query_list + [query])) > QUERY_SIZE_LIMIT or \
+          len(query_list) >= 500:
+        self.run_query(";".join(todo_query_list))
+        results.append(todo_query_list = [query])
+      else:
+        todo_query_list.append(query)
+    # clean up any remaining queries
+    if todo_query_list:
+      results.append(self.run_query(";".join(todo_query_list)))
+
+    return results
+
+
+  def update(self, rows=[]):
+    """
+    Push data locally back to google-hosted fusion table
+    `rows` is a list of Row objects
+    """
+
+    query_list = []
+    for row in rows:
+      if row.row_id is None:
+        raise AttributeError('Rows must have a `row_id` set on UPDATE')
+
+      column_name_field_map = {}
+      unique_columns = []
+      values = []
+
+      for field in row:
+        if field.unique_key:
+          unique_columns.append(field.column_name)
+
+      update_query = SQL().update(self.table_id, 
+                                  row.column_names(), 
+                                  row.values(), 
+                                  int(row.row_id))
+
+      query_list.append(update_query)
+
+    result_batch = []
+    for query in query_list:
+      result_batch.append(self.run_query(query))
+    logger.debug('BULk UPDATE result batch {0}'.format(result_batch) )
+    return result_batch
 
   def get_row_ids(self, unique_key, rows=[]):
     """
-    Based on a set of rows, get the remote fusion table rowids
+    Based on a set of rows, get the remote fusion table row_ids
     `rows` are a set of row objects
     `unique_key` is the name of a column that acts as a primary key in our rows
     """
@@ -221,16 +265,13 @@ class FusionTable(object):
           key_values.append(field.value)
           key_field_map[field.value] = row 
    
-    logger.debug("Produced key-field map:{0}".format(key_field_map))
     select_columns = rows[0].column_names() + ['ROWID']
-    logger.debug("selecting these columns:{0}".format(select_columns))
     key_column_values = ",".join([r.field_lookup[unique_key].prepare_value() for r in rows])
     membership_clause = "'{0}' IN ({1})".format(unique_key,
                                                 key_column_values)
 
     select_query = SQL().select(self.table_id, select_columns, membership_clause)
-    logger.debug('executing fusion table query: %s' % select_query)
-    return self.client.query(select_query)
+    return self.run_query(select_query)
 
 
   def pull(self):
