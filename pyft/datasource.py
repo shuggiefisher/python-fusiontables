@@ -1,5 +1,7 @@
 import logging
+import datetime
 import csv
+import time
 
 from pyft import current_app
 from pyft.client.sql.sqlbuilder import SQL
@@ -21,7 +23,7 @@ DEFAULT_TYPE_HANDLER = {
     }
 
 QUERY_SIZE_LIMIT = 1048576
-
+QUERY_MAX_RATE = datetime.timedelta(milliseconds=200)
 
 class FusionTable(object):
 
@@ -110,7 +112,19 @@ class FusionTable(object):
   @classmethod
   def run_query(self, query):
 
+    if self._last_query_time:
+      if datetime.datetime.now() - QUERY_MAX_RATE < self._last_query_time:
+        td = QUERY_MAX_RATE - (datetime.datetime.now() - self._last_query_time)
+        seconds_to_sleep = (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6) / 10**6.0
+        logger.debug('sleeping : {0}'.format(seconds_to_sleep,td, ) )
+        time.sleep(seconds_to_sleep)
+
+    self._last_query_time = datetime.datetime.now()
+
     logger.debug('execute query: %s' % query)
+    if not query:
+      return None
+
     res =  current_app.client.query(query)
     logger.debug('result: %s' % res)
     return res 
@@ -216,6 +230,15 @@ class FusionTable(object):
 
     return results
 
+
+  def select(self, column_name="ROWID", in_values=[]):
+    """
+    Push data locally back to google-hosted fusion table
+    `rows` is a list of Row objects
+    """
+    # TODO flesh this out
+
+    return self.run_query("select * from {0} limit 1".format(self.table_id))
 
   def update(self, rows=[]):
     """
