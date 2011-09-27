@@ -177,8 +177,7 @@ class FusionTable(object):
   def insert(self, rows=[]):
     """
       Push data locally back to google-hosted fusion table
-       `rows` is a list of Row objects that have the same column structure
-
+      `rows` is a list of Row objects that have the same column structure
       schema: a dictionary representing the rows to be inserted. example:
         {
         "col_name1":"STRING",
@@ -186,38 +185,28 @@ class FusionTable(object):
         "col_name3":"LOCATION",
         "col_name4":"DATETIME"
         }
-
     """
 
     query_list = []
     row_id_result = []
+    # assume all the rows are the same
+    unique_keys = rows[0].unique_keys
 
     for row in rows:
       insert_values = {}
       for col_name in row.column_names():
         # don't call field_instance.prepare_value() because `SQL` does it for us
         insert_values[col_name] = row.field_lookup[col_name].value
-
       new_query = SQL().insert(self.table_id, insert_values)
       query_list.append(new_query)
 
-    inserted_row_ids = self.bulk_insert_query(query_list)
-
-    logger.debug('return row ids for the inserted rows {0}'.format(inserted_row_ids))
-    return inserted_row_ids
-
-
-  def bulk_insert_query(self, query_list):
-
     todo_query_list = [] 
     results = []
-
     logger.debug('starting bulk insert of {0} queries'.format(len(query_list)))
 
     def run_query_list(ql):
       new_row_ids = []
       logger.debug('running query list insert of {0} queries'.format(len(ql)))
-
       try:
         result = self.run_query(";".join(ql))
       except HTTPError, e:
@@ -226,8 +215,8 @@ class FusionTable(object):
         if e.code == 500:
           # did google fusion tables barf?
           # check if our rows are present
+          #self.
           logger.debug('500 Error')
-
       rows = result.strip().split('\n')
       # skip the header
       for row in csv.reader(rows[1:]):
@@ -275,32 +264,29 @@ class FusionTable(object):
     return new_row_ids
 
 
-  def select(self, unique_key, rows=[]):
+  def select(self, select_columns=None, in_clause={}):
     """
     Based on a set of rows, get the remote fusion table row_ids
-    `rows` are a set of row objects
-    `unique_key` is the name of a column that acts as a primary key in our rows
     """
 
-    # build a lookup mapping for key-column-name -> key-value -> row
-    key_field_map = {}
-    key_values = []
-    for row in rows:
-      for field in row:
-        if field.column_name == unique_key:
-          key_values.append(field.value)
-          key_field_map[field.value] = row 
-   
-    select_columns = rows[0].column_names() + ['ROWID']
-    key_column_values = ",".join([r.field_lookup[unique_key].prepare_value() for r in rows])
-    membership_clause = "'{0}' IN ({1})".format(unique_key,
-                                                key_column_values)
+    if select_columns is None:
+      select_columns = self.base_schema.keys()
 
-    select_query = SQL().select(self.table_id, select_columns, membership_clause)
-    return self.run_query(select_query)
+    membership_clauses = []
+    for key in in_clause.keys():
+      membership_clause = "'{0}' IN ({1})".format(key, ",".join(in_clause[key]))
+
+    select_query = SQL().select(self.table_id, select_columns, "AND".join(membership_clauses))
+    return self.parse_row_results(self.run_query(select_query))
 
   def parse_row_results(self, results):
-    pass
+    rows = results.strip().split('\n')
+    parsed_rows = []
+    # skip the header
+    for row in csv.reader(rows):
+      parsed_rows.append(row)
+    # return the header, and the rows
+    return parsed_rows[0], parsed_rows[1:]
 
   def update(self, rows=[]):
     """

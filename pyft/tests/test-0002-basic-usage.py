@@ -28,13 +28,13 @@ class PYFTUsage(unittest.TestCase):
     rand_numbers = []
     rand_letters = []
 
-    for i in xrange(2000):
+    for i in xrange(1000000):
       ran_str = ""
 
-      for k in xrange(100):
+      for k in xrange(5):
         ran_str += (string.letters + string.digits)[random.randrange(0, len(string.letters + string.digits))]
 
-      rand_numbers.append(random.randint(0,1000))
+      rand_numbers.append(i)
       rand_letters.append(ran_str)
 
     return rand_numbers, rand_letters
