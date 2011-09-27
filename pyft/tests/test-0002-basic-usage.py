@@ -3,7 +3,7 @@ import unittest
 import string
 
 from pyft import current_app
-from pyft.datasource import FusionTable
+from pyft.fusiontables import FusionTable
 from pyft.fields import NumberField
 from pyft.fields import StringField
 from pyft.fields import RowID

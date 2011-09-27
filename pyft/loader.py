@@ -1,4 +1,5 @@
 import os
+import warnings
 from pyft.utils import import_from_cwd
 from pyft.utils import find_module
 
@@ -25,9 +26,9 @@ class Loader(object):
     try:
       self.find_module(configname)
     except ImportError:
-      warnings.warn(NotConfigured(
+      warnings.warn(
         "No %r module found! Please make sure it exists and "
-        "is available to Python." % (configname, )))
+        "is available to Python." % (configname, ))
       return self.setup_settings({})
     else:
       pyftconfig = import_from_cwd(configname)
