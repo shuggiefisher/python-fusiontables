@@ -28,7 +28,7 @@ class PYFTUsage(unittest.TestCase):
     rand_numbers = []
     rand_letters = []
 
-    for i in xrange(10):
+    for i in xrange(2000):
       ran_str = ""
 
       for k in xrange(100):
@@ -63,9 +63,13 @@ class PYFTUsage(unittest.TestCase):
       rows.append(Row(row_id=None, fields=[NumberField(num, column_name="numbers"),
                                            StringField(letter,column_name="letters")]))
     row_ids = self.ft.insert(rows)
+    assert(len(row_ids) == len(rows))
 
     rows = []
-    for (num,letter),row_id in zip(self.dummy_data, row_ids):
+    update_these =  zip(self.dummy_data[:10], row_ids[:10])
+    assert(len(update_these) == 10)
+    logger.debug('updating these {0}'.format(update_these))
+    for (num,letter),row_id in update_these:
       rows.append(Row(row_id=row_id, fields=[NumberField(num, column_name="numbers"),
                                            StringField("updated-"+letter,column_name="letters")]))
 
