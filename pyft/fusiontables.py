@@ -173,7 +173,7 @@ class FusionTable(object):
     end_time = time.clock()
     logger.info("synchronized {0} in {1} seconds (CPU time)".format(ft.table_name, end_time - start_time));
 
-  def insert(self, rows=[], callback=None):
+  def insert(self, rows=[]):
     """
       Push data locally back to google-hosted fusion table
        `rows` is a list of Row objects that have the same column structure
