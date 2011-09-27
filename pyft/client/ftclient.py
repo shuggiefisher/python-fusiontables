@@ -28,13 +28,8 @@ class FTClient():
     except: query = query.decode('raw_unicode_escape').encode("utf-8")
 
     lowercase_query = query.lower()
-    if lowercase_query.startswith("select") or \
-       lowercase_query.startswith("describe") or \
-       lowercase_query.startswith("show") or \
-       request_type=="GET":
-
+    if request_type=="GET":
       return self._get(urllib.urlencode({'sql': query}))
-
     else:
       return self._post(urllib.urlencode({'sql': query}))
 
