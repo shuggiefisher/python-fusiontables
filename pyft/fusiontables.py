@@ -174,6 +174,36 @@ class FusionTable(object):
     end_time = time.clock()
     logger.info("synchronized {0} in {1} seconds (CPU time)".format(ft.table_name, end_time - start_time));
 
+  def get_unique_keys(self, rows):
+    # assume all the rows are the same
+    return rows[0].unique_keys
+
+  def determine_which_rows_are_not_inserted(self, rows):
+    """
+    Return the list of rows not present in the fusion table
+    and the rowid's of those rows present
+    """
+
+    unique_keys = self.get_unique_keys(rows)
+    # Use the first unique key
+    key_column_name = unique_keys[0].column_name 
+    in_clause = {key_column_name:[row.field_lookup[key_column_name].prepare_value() for row in rows]}
+    logger.debug('determine_rows_inserted: using column_key {0}'.format(unique_keys[0]))
+
+    headers, results = self.select([x.column_name for x in unique_keys] + ['rowid'], in_clause)
+
+    logger.debug('seeing these columns {0} and results {1}'.format(headers, results))
+
+    result_index = headers.index(key_column_name)
+    key_results = [result[result_index] for result in results]
+
+    rows_not_present = []
+    for row in rows:
+      if row.field_lookup[key_column_name].prepare_value() not in key_results:
+        rows_not_present.append(row)
+    return rows_not_present
+
+
   def insert(self, rows=[]):
     """
       Push data locally back to google-hosted fusion table
@@ -187,82 +217,55 @@ class FusionTable(object):
         }
     """
 
-    query_list = []
-    row_id_result = []
-    # assume all the rows are the same
-    unique_keys = rows[0].unique_keys
-
-    for row in rows:
-      insert_values = {}
-      for col_name in row.column_names():
-        # don't call field_instance.prepare_value() because `SQL` does it for us
-        insert_values[col_name] = row.field_lookup[col_name].value
-      new_query = SQL().insert(self.table_id, insert_values)
-      query_list.append(new_query)
-
-    todo_query_list = [] 
-    results = []
-    logger.debug('starting bulk insert of {0} queries'.format(len(query_list)))
-
-    def run_query_list(ql):
+    def execute_query_list(ql, handle_500_exception=True):
       new_row_ids = []
       logger.debug('running query list insert of {0} queries'.format(len(ql)))
+      query_list, row_list = zip(*ql)
       try:
-        result = self.run_query(";".join(ql))
+        result = self.run_query(";".join(query_list))
       except HTTPError, e:
-        # We are in an error state
-        logger.debug('Recieved Error:', e)
-        if e.code == 500:
+        logger.debug('Insert Error State!', e)
+        if e.code == 500 and handle_500_exception:
+          # XXX Fusion Table throws 500 for successful inserts
+          logger.debug('500 Insert Error')
           # did google fusion tables barf?
           # check if our rows are present
-          #self.
-          logger.debug('500 Error')
+          reinsert_these_rows = self.determine_which_rows_are_not_inserted()
+          insert_queries = [SQL().insert(self.table_id, row.field_lookup) for row in reinsert_these_rows]
+          execute_query_list(insert_queries, handle_500_exception=False)
+          headers, result_rows = self.client.query("select ")
+
+
       rows = result.strip().split('\n')
       # skip the header
       for row in csv.reader(rows[1:]):
         new_row_ids += row
       return new_row_ids
 
+    query_list = []
+    # assume all the rows are the same
+    unique_keys = self.get_unique_keys(rows)
     row_ids = []
-    for query in query_list:
-      if len(";".join(todo_query_list + [query])) > QUERY_SIZE_LIMIT or len(todo_query_list) >= 500:
-        row_ids += run_query_list(todo_query_list)
-        logger.debug('Hit critical limit, size: {0} , len: {1}'.format(len(";".join(todo_query_list + [query])), len(todo_query_list) )  )
-        todo_query_list = [query]
+    logger.debug('starting bulk insert of {0} queries'.format(len(query_list)))
+
+    for row in rows:
+      query = SQL().insert(self.table_id, row.field_lookup)
+
+      if len(";".join([t[0] for t in query_list] + [query])) > QUERY_SIZE_LIMIT \
+          or len(query_list) >= 500:
+        # execute the queued up queries
+        row_ids += execute_query_list(query_list)
+        logger.debug('Hit critical limit, size:{0},len:{1}'.format(len(";".join([t[0] for t in query_list] + [query])),
+          len(query_list)))
+        query_list = [(query,row)]
       else:
-        todo_query_list.append(query)
+        query_list.append((query,row))
 
     # clean up any remaining queries
-    if todo_query_list:
-      row_ids += run_query_list(todo_query_list)
+    if query_list:
+      row_ids += execute_query_list(query_list)
 
     return row_ids
-
-
-  def insert_with_retry(self, unique_key, rows=[], num_retries=3):
-    "insert routine with error handling and checking"
-
-    i=0
-    completed_rows = []
-
-    while i < num_retries:
-
-      try:
-        res_rows = self.insert(rows)
-      except HTTPError, e:
-        logger.debug('Recieved Error:', e)
-        if e.code == 500:
-          logger.debug('500 Error')
-          # select row ids that have been inserted
-          # diff remaining rows for insertion
-          # self.select()
-      else:
-        return res_rows
-
-      i = i+1
-
-    return new_row_ids
-
 
   def select(self, select_columns=None, in_clause={}):
     """
@@ -274,9 +277,9 @@ class FusionTable(object):
 
     membership_clauses = []
     for key in in_clause.keys():
-      membership_clause = "'{0}' IN ({1})".format(key, ",".join(in_clause[key]))
+      membership_clauses.append("'{0}' IN ({1})".format(key, ",".join(in_clause[key])))
 
-    select_query = SQL().select(self.table_id, select_columns, "AND".join(membership_clauses))
+    select_query = SQL().select(self.table_id, cols=select_columns, condition="AND".join(membership_clauses))
     return self.parse_row_results(self.run_query(select_query))
 
   def parse_row_results(self, results):
