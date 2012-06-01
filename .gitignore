@@ -1,0 +1,14 @@
+.DS_Store
+*.pyc
+.project
+.pydevproject
+*.komodoproject
+.idea
+.hgeol
+.deps
+.hg_archival.txt
+.hgignore
+/.settings
+/.ropeproject/
+/.build/
+/dist/

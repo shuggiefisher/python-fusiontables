@@ -1,8 +1,0 @@
-syntax: glob
-
-pyftconfig.py
-
-*.elc
-*.pyc
-*~
-venvs
