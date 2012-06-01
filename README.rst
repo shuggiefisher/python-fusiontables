@@ -1,3 +1,5 @@
+This repo is a git fork of https://bitbucket.org/svevang/python-fusiontables
+
 Install
 -------
 
