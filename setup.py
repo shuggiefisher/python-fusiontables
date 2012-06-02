@@ -1,20 +1,18 @@
-import os
-import sys
 from setuptools import setup, find_packages
 
-def read(fname):
-    return open(os.path.join(os.path.dirname(__file__), fname)).read()
     
 setup(
-    name = "pyfusiontables",
+    name = "python-fusiontables",
     version = "0.0.1.1",
     description='Use fusiontables to store column oriented data',
-    long_description = read('README.rst'),
+    long_description = open('README.rst').read(),
     url='https://github.com/shuggiefisher/python-fusiontables',
     license = 'BSD',
     author = 'Sam Vevang',
     author_email = 'sam.vevang@gmail.com',
     packages = find_packages(),
+    include_package_data=True,
+    zip_safe=False,
     classifiers = [
         'Environment :: Console',
         'Intended Audience :: Developers',
