@@ -7,10 +7,10 @@ def read(fname):
     
 setup(
     name = "pyfusiontables",
-    version = "0.0.1",
+    version = "0.0.1.1",
     description='Use fusiontables to store column oriented data',
     long_description = read('README.rst'),
-    url='https://bitbucket.org/svevang/ftstore',
+    url='https://github.com/shuggiefisher/python-fusiontables',
     license = 'BSD',
     author = 'Sam Vevang',
     author_email = 'sam.vevang@gmail.com',
