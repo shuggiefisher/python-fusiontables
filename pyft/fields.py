@@ -22,7 +22,7 @@ class Row(list):
     self.field_lookup = {}
     for field in fields:
       self.append(field)
-      self.field_lookup[field.column_name] = field
+      self.field_lookup[field.column_name] = field.value
       if field.unique_key:
         self.unique_keys.append(field)
     return res
