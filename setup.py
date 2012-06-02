@@ -1,5 +1,6 @@
-from setuptools import setup, find_packages
-
+# -*- coding: utf-8 -*-
+from distutils.core import setup
+from setuptools import find_packages
     
 setup(
     name = "python-fusiontables",
@@ -21,8 +22,8 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python',
     ],
+    install_requires = ['python-fusion-tables-client', 'python-dateutil', 'simplejson'],
     dependency_links = [
         "http://bitbucket.org/svevang/python-fusion-tables-client/get/tip.zip#egg=python-fusion-tables-client",
     ],
-    install_requires = ['python-fusion-tables-client', 'importlib', 'python-dateutil', 'simplejson'],
 )
