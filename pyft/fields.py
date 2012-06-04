@@ -22,7 +22,7 @@ class Row(list):
     self.field_lookup = {}
     for field in fields:
       self.append(field)
-      self.field_lookup[field.column_name] = field.value
+      self.field_lookup[field.column_name] = field.prepare_value()
       if field.unique_key:
         self.unique_keys.append(field)
     return res
@@ -48,7 +48,7 @@ class BaseField(object):
     self.unique_key = unique_key
 
   def prepare_value(self):
-    return "'{0}'".format(value)
+    return "{0}".format(self.value)
 
 class RowID(BaseField):
   column_type = "RowID"
@@ -57,7 +57,7 @@ class StringField(BaseField):
   column_type = "STRING"
 
   def prepare_value(self):
-    return "'{0}'".format(value)
+    return "'{0}'".format(self.value)
 
 class NumberField(BaseField):
   column_type = "NUMBER"
@@ -68,6 +68,8 @@ class NumberField(BaseField):
     #XXX round off:
     elif type(self.value).__name__ == 'float':
       return "{0:f}".format(self.value)
+    elif type(self.value).__name__ == 'Decimal':
+      return "%s" % self.value
 
 class LocationField(StringField):
   column_type = "LOCATION"
@@ -75,3 +77,5 @@ class LocationField(StringField):
 class DatetimeField(BaseField):
   column_type = "DATETIME"
 
+  def prepare_value(self):
+    return "%s" % self.value
