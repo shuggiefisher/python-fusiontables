@@ -22,7 +22,7 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python',
     ],
-    install_requires = ['python-fusion-tables-client', 'python-dateutil', 'simplejson'],
+    install_requires = ['python-dateutil', 'simplejson'],
     dependency_links = [
         "http://bitbucket.org/svevang/python-fusion-tables-client/get/tip.zip#egg=python-fusion-tables-client",
     ],
