@@ -41,7 +41,7 @@ class FusionTable(object):
     self.client = current_app.client
     self.column_handler_by_type = type_handler
     self.column_handler_by_name = name_handler
-    
+
   @property
   def table_name(self):
     # parse resp into rows(\n) and columns(,),
@@ -49,11 +49,11 @@ class FusionTable(object):
     tbl_attrs = []
     query_res = self.client.query("show tables")
     for table_line in query_res.strip().split("\n")[1:]:
-      tbl_attrs.append(table_line.split(",")) 
+      tbl_attrs.append(table_line.split(","))
 
     # cast table ids as int
     tbl_ids = [int(tbl_attr[0]) for tbl_attr in tbl_attrs]
-    
+
     this_tbl_idx = tbl_ids.index(self.table_id)
     self.table_name = tbl_attrs[this_tbl_idx][1]
 
@@ -65,11 +65,11 @@ class FusionTable(object):
     tbl_attrs = []
     query_res = self.client.query("show tables")
     for table_line in query_res.strip().split("\n")[1:]:
-      tbl_attrs.append(table_line.split(",")) 
+      tbl_attrs.append(table_line.split(","))
 
     # cast table ids as int
     tbl_ids = [int(tbl_attr[0]) for tbl_attr in tbl_attrs]
-    
+
     this_tbl_idx = tbl_ids.index(self.table_id)
     self.table_name = tbl_attrs[this_tbl_idx][1]
 
@@ -79,7 +79,7 @@ class FusionTable(object):
     "returns a list that represents the fusion table schema"
 
     description = self.client.query(SQL().describeTable(self.table_id))
-    self._schema = [('rowid','rowid','rowid')] 
+    self._schema = [('rowid','rowid','rowid')]
     self._schema += [tuple(row.split(",")) for row in description.split("\n")][1:-1] #skips header row
 
     return self._schema
@@ -92,15 +92,15 @@ class FusionTable(object):
     schema = {}
     for col_id, col_name, col_type in self.fetch_schema():
 
-      if col_type == 'rowid': 
+      if col_type == 'rowid':
         field = RowID
-      elif col_type == 'location': 
+      elif col_type == 'location':
         field = LocationField
-      elif col_type == 'string': 
+      elif col_type == 'string':
         field = StringField
-      elif col_type == 'number': 
+      elif col_type == 'number':
         field = NumberField
-      elif col_type == 'datetime': 
+      elif col_type == 'datetime':
         field = DatetimeField
 
       while col_name in schema:
@@ -128,8 +128,8 @@ class FusionTable(object):
 
     res =  current_app.client.query(query)
     logger.debug('result: %s' % res)
-    return res 
-  
+    return res
+
   @classmethod
   def create(cls, schema, table_name, type_handler=DEFAULT_TYPE_HANDLER, name_handler={}):
     """
@@ -147,7 +147,7 @@ class FusionTable(object):
       SQL().createTable(
         { table_name: schema }
       ))
-    table_id = int(resp.split('\n')[1])
+    table_id = resp.split('\n')[1]
 
     return cls(table_id)
 
@@ -186,7 +186,7 @@ class FusionTable(object):
 
     unique_keys = self.get_unique_keys(rows)
     # Use the first unique key
-    key_column_name = unique_keys[0].column_name 
+    key_column_name = unique_keys[0].column_name
     in_clause = {key_column_name:[row.field_lookup[key_column_name].prepare_value() for row in rows]}
     logger.debug('determine_rows_inserted: using column_key {0}'.format(unique_keys[0]))
 
@@ -310,9 +310,9 @@ class FusionTable(object):
         if field.unique_key:
           unique_columns.append(field.column_name)
 
-      update_query = SQL().update(self.table_id, 
-                                  row.column_names(), 
-                                  row.values(), 
+      update_query = SQL().update(self.table_id,
+                                  row.column_names(),
+                                  row.values(),
                                   int(row.row_id))
 
       query_list.append(update_query)
@@ -349,7 +349,7 @@ class FusionTable(object):
           except:
             row[column.name] = None
         slugged_row[column.slugged_name] = row[column.name]
-       
+
       # instantiate a model for the corresponding django class
 
       model = model_class()
@@ -363,5 +363,5 @@ class FusionTable(object):
         logger.error(message)
         logger.debug(row)
 
-    return error_messages        
-    
+    return error_messages
+

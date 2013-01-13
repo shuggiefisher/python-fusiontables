@@ -32,7 +32,7 @@ class Row(list):
 
   def values(self):
     return [field.value for field in self]
-  
+
   def field_lookup(self, column_name):
     pass
 
@@ -57,7 +57,7 @@ class StringField(BaseField):
   column_type = "STRING"
 
   def prepare_value(self):
-    return "'{0}'".format(self.value)
+    return "{0}".format(self.value)
 
 class NumberField(BaseField):
   column_type = "NUMBER"

@@ -32,7 +32,7 @@ class SQL:
     Returns:
       the sql statement
     """
-    return 'DESCRIBE %d' % (table_id)
+    return 'DESCRIBE %s' % (table_id)
 
   def createTable(self, table):
     """ Build a CREATE TABLE sql statement.
@@ -54,7 +54,7 @@ class SQL:
     """
 
     table_name = table.keys()[0]
-    cols_and_datatypes = ",".join(["'%s': %s" % (col[0], col[1]) 
+    cols_and_datatypes = ",".join(["'%s': %s" % (col[0], col[1])
                                    for col in table.get(table_name).items()])
     return "CREATE TABLE '%s' (%s)" % (table_name, cols_and_datatypes)
 
@@ -76,8 +76,8 @@ class SQL:
                           .replace("\'rowid\'", "rowid") \
                           .replace("\'ROWID\'", "ROWID")
 
-    if condition: select = 'SELECT %s FROM %d WHERE %s' % (stringCols, table_id, condition)
-    else: select = 'SELECT %s FROM %d' % (stringCols, table_id)
+    if condition: select = 'SELECT %s FROM %s WHERE %s' % (stringCols, table_id, condition)
+    else: select = 'SELECT %s FROM %s' % (stringCols, table_id)
     return select
 
 
@@ -110,7 +110,7 @@ class SQL:
       if count < len(cols): updateStatement = "%s," % (updateStatement)
       count += 1
 
-    return "UPDATE %d SET %s WHERE ROWID = '%d'" % (table_id, updateStatement, row_id)
+    return "UPDATE %s SET %s WHERE ROWID = '%d'" % (table_id, updateStatement, row_id)
 
   def delete(self, table_id, row_id):
     """ Build DELETE sql statement.
@@ -122,7 +122,7 @@ class SQL:
     Returns:
       the sql statement
     """
-    return "DELETE FROM %d WHERE ROWID = '%d'" % (table_id, row_id)
+    return "DELETE FROM %s WHERE ROWID = '%d'" % (table_id, row_id)
 
 
   def insert(self, table_id, values):
@@ -155,7 +155,7 @@ class SQL:
       if count < len(values): stringValues = "%s," % (stringValues)
       count += 1
 
-    return 'INSERT INTO %d (%s) VALUES (%s)' % (int(table_id), ','.join(["'%s'" % col for col in cols]), stringValues)
+    return 'INSERT INTO %s (%s) VALUES (%s)' % (table_id, ','.join(["'%s'" % col for col in cols]), stringValues)
 
   def dropTable(self, table_id):
     """ Build DROP TABLE sql statement.
@@ -166,7 +166,7 @@ class SQL:
     Returns:
       the sql statement
     """
-    return "DROP TABLE %d" % (table_id)
+    return "DROP TABLE %s" % (table_id)
 
 
 if __name__ == '__main__':
